@@ -1,0 +1,160 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model
+model User {
+  id              String         @id @default(uuid())
+  name            String
+  email           String         @unique
+  password        String
+  role            String         // Puede ser 'participant', 'admin', etc.
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  
+  // Relaciones con otras entidades
+  sentMessages    Message[]      @relation("SentMessages")
+  receivedChats   ChatMember[]   @relation("UserChatMembers")
+  simulations     UserSimulation[] @relation("UserSimulations")
+  activities      Activity[]     @relation("UserActivities")
+}
+
+// Chat model - Para conversaciones
+model Chat {
+  id          String      @id @default(uuid())
+  name        String?     // Opcional para chats grupales
+  type        ChatType    // INDIVIDUAL, GROUP, SUBGROUP
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  // Relaciones
+  messages    Message[]   @relation("ChatMessages")
+  members     ChatMember[] @relation("ChatMembers")
+}
+
+// Tipo de chat
+enum ChatType {
+  INDIVIDUAL  // 1 a 1
+  GROUP       // Grupal (Todo el equipo)
+  SUBGROUP    // Subgrupal (Parte del equipo)
+}
+
+// Relación muchos a muchos entre User y Chat
+model ChatMember {
+  id        String    @id @default(uuid())
+  userId    String
+  chatId    String
+  joinedAt  DateTime  @default(now())
+  
+  // Relaciones
+  user      User      @relation("UserChatMembers", fields: [userId], references: [id])
+  chat      Chat      @relation("ChatMembers", fields: [chatId], references: [id])
+
+  @@unique([userId, chatId])
+}
+
+// Mensaje en un chat
+model Message {
+  id          String    @id @default(uuid())
+  content     String
+  senderId    String
+  chatId      String
+  replyToId   String?   // Para respuestas a otros mensajes
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relaciones
+  sender      User      @relation("SentMessages", fields: [senderId], references: [id])
+  chat        Chat      @relation("ChatMessages", fields: [chatId], references: [id])
+  replyTo     Message?  @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies     Message[] @relation("MessageReplies")
+}
+
+// Simulación Laboral
+model Simulation {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  type        SimulationType // OPEN, COMPANY
+  startDate   DateTime
+  endDate     DateTime
+  status      SimulationStatus
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relaciones
+  users       UserSimulation[] @relation("SimulationUsers")
+  projects    Project[]    @relation("SimulationProjects")
+  activities  Activity[]   @relation("SimulationActivities")
+}
+
+enum SimulationType {
+  OPEN      // Simulación abierta
+  COMPANY   // Simulación parametrizada por empresa
+}
+
+enum SimulationStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+// Relación muchos a muchos entre User y Simulation
+model UserSimulation {
+  id            String    @id @default(uuid())
+  userId        String
+  simulationId  String
+  role          String    // Ejemplo: "backend", "frontend", etc.
+  vertical      String    // Ejemplo: "web", "mobile", etc.
+  joinedAt      DateTime  @default(now())
+  
+  // Relaciones
+  user          User      @relation("UserSimulations", fields: [userId], references: [id])
+  simulation    Simulation @relation("SimulationUsers", fields: [simulationId], references: [id])
+
+  @@unique([userId, simulationId])
+}
+
+// Proyecto asignado a una simulación
+model Project {
+  id            String    @id @default(uuid())
+  name          String
+  description   String
+  simulationId  String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relaciones
+  simulation    Simulation @relation("SimulationProjects", fields: [simulationId], references: [id])
+}
+
+// Actividades/Eventos registrados
+model Activity {
+  id            String    @id @default(uuid())
+  userId        String
+  simulationId  String
+  type          ActivityType
+  details       String?
+  timestamp     DateTime  @default(now())
+  
+  // Relaciones
+  user          User      @relation("UserActivities", fields: [userId], references: [id])
+  simulation    Simulation @relation("SimulationActivities", fields: [simulationId], references: [id])
+}
+
+enum ActivityType {
+  LOGIN
+  JOIN_MEET
+  SEND_MESSAGE
+  UPLOAD_DELIVERABLE
+  COMPLETE_TASK
+} 

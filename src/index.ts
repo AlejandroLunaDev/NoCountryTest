@@ -1,0 +1,69 @@
+import express from 'express';
+import http from 'http';
+import { Server as SocketServer } from 'socket.io';
+import cors from 'cors';
+import swaggerUi from 'swagger-ui-express';
+import { config } from './config/env';
+import { specs } from './config/swagger';
+import chatRoutes from './modules/chats/routes/chatRoutes';
+import messageRoutes from './modules/messages/routes/messageRoutes';
+import simulationsRoutes from './modules/simulations/routes';
+import devtoolsRoutes from './modules/devtools/routes';
+import userRoutes from './modules/users/routes';
+import { setupSocketHandlers } from './modules/socket/socket';
+import { errorHandler } from './middlewares/errorHandler';
+import morganMiddleware from './middlewares/morgan';
+import logger from './utils/logger';
+
+// Inicializar Express
+const app = express();
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(morganMiddleware); // Registrar solicitudes HTTP
+
+// Crear servidor HTTP
+const server = http.createServer(app);
+
+// Inicializar Socket.IO
+const io = new SocketServer(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  }
+});
+
+// Configurar WebSockets
+setupSocketHandlers(io);
+
+// Documentación API con Swagger
+app.use(
+  '/api-docs',
+  swaggerUi.serve,
+  swaggerUi.setup(specs, { explorer: true })
+);
+
+// Rutas API
+app.use('/api/chats', chatRoutes);
+app.use('/api/messages', messageRoutes);
+app.use('/api/simulations', simulationsRoutes);
+app.use('/api/devtools', devtoolsRoutes);
+app.use('/api/users', userRoutes);
+
+// Ruta principal
+app.get('/', (req, res) => {
+  res.send('No Country API - Prueba técnica');
+});
+
+// Middleware para manejo de errores (debe estar después de las rutas)
+app.use(errorHandler);
+
+// Iniciar servidor
+server.listen(config.port, () => {
+  logger.info(`Servidor iniciado`, {
+    port: config.port,
+    mode: config.nodeEnv,
+    docs: `http://localhost:${config.port}/api-docs`
+  });
+});
