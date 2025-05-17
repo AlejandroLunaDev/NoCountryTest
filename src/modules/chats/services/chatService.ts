@@ -255,7 +255,54 @@ export const chatService = {
         }
       });
 
-      // 3. Notificar solo al usuario que solicitó la eliminación
+      // 3. Comprobar si todos los miembros han eliminado el chat
+      // Obtener información de los miembros del chat
+      const chatMembers = await prisma.chatMember.findMany({
+        where: { chatId },
+        select: { userId: true }
+      });
+
+      // Obtener los estados de chat para verificar cuáles están marcados como eliminados
+      const chatUserStates = await prisma.chatUserState.findMany({
+        where: {
+          chatId,
+          isDeleted: true
+        },
+        select: { userId: true }
+      });
+
+      if (chatMembers.length === 0) {
+        throw new Error('Chat no encontrado o sin miembros');
+      }
+
+      // Si todos los miembros han eliminado el chat, eliminarlo permanentemente
+      const allMemberIds = chatMembers.map(member => member.userId);
+      const deletedByMemberIds = chatUserStates.map(state => state.userId);
+
+      // Verificar si todos los miembros han eliminado el chat
+      const allMembersDeleted = allMemberIds.every(memberId =>
+        deletedByMemberIds.includes(memberId)
+      );
+
+      // Si todos los miembros han eliminado el chat, proceder con la eliminación física
+      if (allMembersDeleted) {
+        console.log(
+          `Todos los miembros han eliminado el chat ${chatId}. Procediendo con eliminación permanente.`
+        );
+
+        // Usar el método hardDeleteChatInternal pero saltando las verificaciones de admin
+        await this.hardDeleteChatInternal(chatId, requestUserId);
+
+        return {
+          success: true,
+          message:
+            'Chat eliminado permanentemente ya que todos los miembros lo han eliminado',
+          deletedAt: chatUserState.deletedAt,
+          permanentlyDeleted: true
+        };
+      }
+
+      // 4. Notificar solo al usuario que solicitó la eliminación
       if (io) {
         io.to(`user:${requestUserId}`).emit('chat_deleted', {
           chatId,
@@ -267,10 +314,66 @@ export const chatService = {
       return {
         success: true,
         message: 'Chat eliminado (solo para ti)',
-        deletedAt: chatUserState.deletedAt
+        deletedAt: chatUserState.deletedAt,
+        permanentlyDeleted: false
       };
     } catch (error) {
       console.error('Error al eliminar chat:', error);
+      throw error;
+    }
+  },
+
+  // Método interno para la eliminación física del chat (usado cuando todos los miembros han eliminado el chat)
+  async hardDeleteChatInternal(chatId: string, requestUserId: string) {
+    try {
+      // 1. Obtener los miembros para notificar después
+      const membersToNotify = await prisma.chatMember.findMany({
+        where: { chatId },
+        select: { userId: true }
+      });
+
+      // 2. Eliminar mensajes
+      await prisma.message.deleteMany({
+        where: { chatId }
+      });
+
+      // 3. Eliminar estados de chat
+      await prisma.chatUserState.deleteMany({
+        where: { chatId }
+      });
+
+      // 4. Eliminar miembros
+      await prisma.chatMember.deleteMany({
+        where: { chatId }
+      });
+
+      // 5. Eliminar notificaciones
+      await prisma.notification.deleteMany({
+        where: { chatId }
+      });
+
+      // 6. Eliminar el chat
+      await prisma.chat.delete({
+        where: { id: chatId }
+      });
+
+      // 7. Notificar a todos los miembros sobre el borrado permanente
+      if (io) {
+        membersToNotify.forEach(member => {
+          io?.to(`user:${member.userId}`).emit('chat_hard_deleted', {
+            chatId,
+            deletedBy: requestUserId,
+            permanent: true
+          });
+        });
+      }
+
+      return {
+        success: true,
+        message: 'Chat eliminado permanentemente'
+      };
+    } catch (error) {
+      console.error('Error al eliminar permanentemente el chat:', error);
       throw error;
     }
   },
@@ -291,52 +394,7 @@ export const chatService = {
         );
       }
 
-      // 2. Obtener los miembros para notificar después
-      const membersToNotify = await prisma.chatMember.findMany({
-        where: { chatId },
-        select: { userId: true }
-      });
-
-      // 3. Eliminar mensajes
-      await prisma.message.deleteMany({
-        where: { chatId }
-      });
-
-      // 4. Eliminar estados de chat
-      await prisma.chatUserState.deleteMany({
-        where: { chatId }
-      });
-
-      // 5. Eliminar miembros
-      await prisma.chatMember.deleteMany({
-        where: { chatId }
-      });
-
-      // 6. Eliminar notificaciones
-      await prisma.notification.deleteMany({
-        where: { chatId }
-      });
-
-      // 7. Eliminar el chat
-      await prisma.chat.delete({
-        where: { id: chatId }
-      });
-
-      // 8. Notificar a todos los miembros sobre el borrado permanente
-      if (io) {
-        membersToNotify.forEach(member => {
-          io?.to(`user:${member.userId}`).emit('chat_hard_deleted', {
-            chatId,
-            deletedBy: requestUserId,
-            permanent: true
-          });
-        });
-      }
-
-      return {
-        success: true,
-        message: 'Chat eliminado permanentemente'
-      };
+      return await this.hardDeleteChatInternal(chatId, requestUserId);
     } catch (error) {
       console.error('Error al eliminar permanentemente el chat:', error);
       throw error;
