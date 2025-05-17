@@ -1,5 +1,5 @@
 export interface CreateUserDTO {
-  name: string;
+  name?: string;
   email: string;
   password: string;
   role: string;
@@ -19,7 +19,7 @@ export interface LoginUserDTO {
 
 export interface UserResponseDTO {
   id: string;
-  name: string;
+  name?: string;
   email: string;
   role: string;
   createdAt: Date;

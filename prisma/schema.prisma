@@ -13,9 +13,8 @@ datasource db {
 // User model
 model User {
   id              String         @id @default(uuid())
-  name            String
+  name            String?
   email           String         @unique
-  password        String
   role            String         // Puede ser 'participant', 'admin', etc.
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt

@@ -5,6 +5,7 @@ import {
   QueryUsersDTO,
   LoginUserDTO
 } from '../types';
+import { Prisma } from '@prisma/client';
 import { config } from '../../../config/env';
 import { supabase } from '../../../config/supabase';
 
@@ -31,20 +32,18 @@ export const userService = {
       throw new Error(`Supabase auth error: ${error.message}`);
     }
 
-    // Create user in our database
+    // Create user in our database (sin password)
+    const userData: any = {
+      name,
+      email,
+      role
+    };
+
     const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        // Store a reference to the Supabase user ID instead of the password
-        password: authData.user?.id || '',
-        role
-      }
+      data: userData
     });
 
-    // Remove password from response
-    const { password: _, ...userWithoutPassword } = user;
-    return userWithoutPassword;
+    return user;
   },
 
   async getUserById(id: string) {
@@ -54,9 +53,7 @@ export const userService = {
 
     if (!user) return null;
 
-    // Remove password from response
-    const { password: _, ...userWithoutPassword } = user;
-    return userWithoutPassword;
+    return user;
   },
 
   async updateUser(id: string, data: UpdateUserDTO) {
@@ -83,7 +80,7 @@ export const userService = {
         throw new Error(`Failed to update password: ${error.message}`);
       }
 
-      // Don't store the actual password in our database
+      // Remove password from updateData as it's not in our schema anymore
       delete updateData.password;
     }
 
@@ -92,9 +89,7 @@ export const userService = {
       data: updateData
     });
 
-    // Remove password from response
-    const { password: _, ...userWithoutPassword } = user;
-    return userWithoutPassword;
+    return user;
   },
 
   async deleteUser(id: string) {
@@ -122,14 +117,6 @@ export const userService = {
       take: limit,
       orderBy: {
         createdAt: 'desc'
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        createdAt: true,
-        updatedAt: true
       }
     });
 
@@ -158,11 +145,8 @@ export const userService = {
       throw new Error('User not found in database');
     }
 
-    // Remove password from response
-    const { password: _, ...userWithoutPassword } = user;
-
     return {
-      user: userWithoutPassword,
+      user,
       token: authData.session.access_token
     };
   }

@@ -18,8 +18,18 @@ import logger from './utils/logger';
 // Inicializar Express
 const app = express();
 
+// Configuración CORS mejorada
+const corsOptions = {
+  origin: '*', // Permitir todos los orígenes
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  preflightContinue: false,
+  optionsSuccessStatus: 204,
+  credentials: true,
+  allowedHeaders: 'Content-Type,Authorization,X-Requested-With'
+};
+
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(morganMiddleware); // Registrar solicitudes HTTP
 
