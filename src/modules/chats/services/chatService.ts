@@ -110,10 +110,6 @@ export const chatService = {
               in: [userId1, userId2]
             }
           }
-        },
-        // Verificar que el chat tenga exactamente 2 miembros
-        _count: {
-          members: 2
         }
       },
       include: {
@@ -121,17 +117,22 @@ export const chatService = {
           select: {
             userId: true
           }
+        },
+        _count: {
+          select: {
+            members: true
+          }
         }
       }
     });
 
-    // Filtrar para asegurarse de que el chat contiene exactamente estos dos usuarios y no más
+    // Filtrar para asegurarse de que el chat contiene exactamente estos dos usuarios
     return chats.find(chat => {
       const chatUserIds = chat.members.map(member => member.userId);
       return (
         chatUserIds.includes(userId1) &&
         chatUserIds.includes(userId2) &&
-        chatUserIds.length === 2
+        chat._count.members === 2
       );
     });
   },
