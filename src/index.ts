@@ -11,6 +11,8 @@ import simulationsRoutes from './modules/simulations/routes';
 import devtoolsRoutes from './modules/devtools/routes';
 import userRoutes from './modules/users/routes';
 import { setupSocketHandlers } from './modules/socket/socket';
+import { initializeNotificationModule } from './modules/notifications';
+import { setupChatServiceSocketIO } from './modules/chats/services/chatService';
 import { errorHandler } from './middlewares/errorHandler';
 import morganMiddleware from './middlewares/morgan';
 import logger from './utils/logger';
@@ -44,8 +46,16 @@ const io = new SocketServer(server, {
   }
 });
 
-// Configurar WebSockets
+// Configurar WebSockets para chat
 setupSocketHandlers(io);
+
+// Configurar Socket.IO en el servicio de chat
+setupChatServiceSocketIO(io);
+
+// Inicializar y configurar el módulo de notificaciones
+const { notificationService, notificationIntegrationService } =
+  initializeNotificationModule(io);
+logger.info('Módulo de notificaciones inicializado');
 
 // Documentación API con Swagger
 app.use(

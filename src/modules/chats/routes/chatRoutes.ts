@@ -143,4 +143,93 @@ router.get('/users/:userId', chatController.getUserChats);
  */
 router.post('/:chatId/members', chatController.addMemberToChat);
 
+/**
+ * @swagger
+ * /api/chats/{id}:
+ *   delete:
+ *     summary: Eliminar un chat (solo para el usuario que realiza la petición)
+ *     tags: [Chats]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         required: true
+ *         description: ID del chat a eliminar
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: ID del usuario que solicita la eliminación (idealmente debería venir de la sesión)
+ *     responses:
+ *       200:
+ *         description: Chat eliminado exitosamente (solo para el usuario solicitante)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       403:
+ *         description: No tienes permiso para eliminar este chat
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
+router.delete('/:id', chatController.deleteChat);
+
+/**
+ * @swagger
+ * /api/chats/{id}/hard:
+ *   delete:
+ *     summary: Eliminar un chat permanentemente (borrado físico - solo para administradores)
+ *     tags: [Chats]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         required: true
+ *         description: ID del chat a eliminar permanentemente
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: ID del administrador
+ *               isAdmin:
+ *                 type: boolean
+ *                 description: Debe ser true para permitir la operación
+ *     responses:
+ *       200:
+ *         description: Chat eliminado permanentemente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       403:
+ *         description: Operación no permitida - Se requieren privilegios de administrador
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
+router.delete('/:id/hard', chatController.hardDeleteChat);
+
 export default router;

@@ -1,9 +1,39 @@
 import prisma from '../../../config/prisma';
 import { CreateChatDTO, AddMemberDTO } from '../types';
+import { notificationIntegrationService } from '../../notifications/services/notificationIntegrationService';
+import { Server as SocketServer } from 'socket.io';
+import { ChatType } from '@prisma/client';
+
+// Variable para almacenar la instancia de Socket.IO
+let io: SocketServer | null = null;
+
+// Función para configurar la instancia de Socket.IO
+export const setupChatServiceSocketIO = (socketIO: SocketServer) => {
+  io = socketIO;
+};
 
 export const chatService = {
   async createChat(data: CreateChatDTO) {
-    const { name, type, memberIds } = data;
+    const { name, type, memberIds, creatorId } = data;
+
+    // Validación: Si es un chat INDIVIDUAL, solo debe tener exactamente 2 miembros
+    if (type === ChatType.INDIVIDUAL) {
+      if (memberIds.length !== 2) {
+        throw new Error(
+          'Los chats individuales deben tener exactamente 2 miembros'
+        );
+      }
+
+      // Verificar si ya existe un chat individual entre estos dos usuarios
+      const existingChat = await this.findExistingIndividualChat(
+        memberIds[0],
+        memberIds[1]
+      );
+
+      if (existingChat) {
+        throw new Error('Ya existe un chat individual entre estos usuarios');
+      }
+    }
 
     // Crear el chat
     const chat = await prisma.chat.create({
@@ -31,7 +61,79 @@ export const chatService = {
       }
     });
 
+    // Notificar a los usuarios añadidos al chat (excepto al creador)
+    try {
+      // Solo si tenemos la información del creador
+      if (creatorId) {
+        await notificationIntegrationService.notifyChatCreated(
+          chat.id,
+          chat.name || 'Nuevo chat',
+          creatorId,
+          memberIds
+        );
+      }
+
+      // Notificar a través de WebSocket que se ha creado un chat
+      if (io) {
+        // Para cada miembro, emitir un evento a su canal personalizado
+        memberIds.forEach(userId => {
+          // No notificar al creador, solo a los demás usuarios
+          if (userId !== creatorId) {
+            io.to(`user:${userId}`).emit('new_chat', {
+              chatId: chat.id,
+              chatName: chat.name,
+              creatorId,
+              type: chat.type
+            });
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error al notificar la creación del chat:', error);
+      // No interrumpimos el flujo principal si falla la notificación
+    }
+
     return chat;
+  },
+
+  /**
+   * Busca si ya existe un chat individual entre dos usuarios específicos
+   */
+  async findExistingIndividualChat(userId1: string, userId2: string) {
+    // Buscar chats donde ambos usuarios son miembros
+    const chats = await prisma.chat.findMany({
+      where: {
+        type: ChatType.INDIVIDUAL,
+        members: {
+          every: {
+            userId: {
+              in: [userId1, userId2]
+            }
+          }
+        },
+        // Verificar que el chat tenga exactamente 2 miembros
+        _count: {
+          members: 2
+        }
+      },
+      include: {
+        members: {
+          select: {
+            userId: true
+          }
+        }
+      }
+    });
+
+    // Filtrar para asegurarse de que el chat contiene exactamente estos dos usuarios y no más
+    return chats.find(chat => {
+      const chatUserIds = chat.members.map(member => member.userId);
+      return (
+        chatUserIds.includes(userId1) &&
+        chatUserIds.includes(userId2) &&
+        chatUserIds.length === 2
+      );
+    });
   },
 
   async findChatById(id: string) {
@@ -68,11 +170,21 @@ export const chatService = {
   },
 
   async getChatsByUserId(userId: string) {
+    // Obtenemos chats donde el usuario es miembro y no los ha eliminado
     return prisma.chat.findMany({
       where: {
         members: {
           some: {
             userId
+          }
+        },
+        // No mostrar chats marcados como eliminados para este usuario
+        NOT: {
+          userStates: {
+            some: {
+              userId,
+              isDeleted: true
+            }
           }
         }
       },
@@ -106,5 +218,127 @@ export const chatService = {
         userId
       }
     });
+  },
+
+  async deleteChat(chatId: string, requestUserId: string) {
+    try {
+      // 1. Verificar que el usuario tenga permiso para eliminar el chat (es un miembro)
+      const chatMembership = await prisma.chatMember.findFirst({
+        where: {
+          chatId,
+          userId: requestUserId
+        }
+      });
+
+      if (!chatMembership) {
+        throw new Error('No tienes permiso para eliminar este chat');
+      }
+
+      // 2. Marcar el chat como eliminado solo para este usuario
+      const chatUserState = await prisma.chatUserState.upsert({
+        where: {
+          userId_chatId: {
+            userId: requestUserId,
+            chatId
+          }
+        },
+        update: {
+          isDeleted: true,
+          deletedAt: new Date()
+        },
+        create: {
+          userId: requestUserId,
+          chatId,
+          isDeleted: true,
+          deletedAt: new Date()
+        }
+      });
+
+      // 3. Notificar solo al usuario que solicitó la eliminación
+      if (io) {
+        io.to(`user:${requestUserId}`).emit('chat_deleted', {
+          chatId,
+          deletedBy: requestUserId,
+          deletedAt: chatUserState.deletedAt
+        });
+      }
+
+      return {
+        success: true,
+        message: 'Chat eliminado (solo para ti)',
+        deletedAt: chatUserState.deletedAt
+      };
+    } catch (error) {
+      console.error('Error al eliminar chat:', error);
+      throw error;
+    }
+  },
+
+  // Método para eliminar completamente un chat (borrado físico - solo para administradores o casos especiales)
+  async hardDeleteChat(
+    chatId: string,
+    requestUserId: string,
+    isAdmin: boolean = false
+  ) {
+    try {
+      // 1. Verificar permiso (debe ser admin o creador)
+      if (!isAdmin) {
+        // Implementar lógica para verificar si es creador del chat
+        // Aquí podrías añadir un campo "createdBy" al modelo de Chat
+        throw new Error(
+          'Operación no permitida: se requieren privilegios de administrador'
+        );
+      }
+
+      // 2. Obtener los miembros para notificar después
+      const membersToNotify = await prisma.chatMember.findMany({
+        where: { chatId },
+        select: { userId: true }
+      });
+
+      // 3. Eliminar mensajes
+      await prisma.message.deleteMany({
+        where: { chatId }
+      });
+
+      // 4. Eliminar estados de chat
+      await prisma.chatUserState.deleteMany({
+        where: { chatId }
+      });
+
+      // 5. Eliminar miembros
+      await prisma.chatMember.deleteMany({
+        where: { chatId }
+      });
+
+      // 6. Eliminar notificaciones
+      await prisma.notification.deleteMany({
+        where: { chatId }
+      });
+
+      // 7. Eliminar el chat
+      await prisma.chat.delete({
+        where: { id: chatId }
+      });
+
+      // 8. Notificar a todos los miembros sobre el borrado permanente
+      if (io) {
+        membersToNotify.forEach(member => {
+          io?.to(`user:${member.userId}`).emit('chat_hard_deleted', {
+            chatId,
+            deletedBy: requestUserId,
+            permanent: true
+          });
+        });
+      }
+
+      return {
+        success: true,
+        message: 'Chat eliminado permanentemente'
+      };
+    } catch (error) {
+      console.error('Error al eliminar permanentemente el chat:', error);
+      throw error;
+    }
   }
 };

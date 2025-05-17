@@ -24,6 +24,13 @@ model User {
   receivedChats   ChatMember[]   @relation("UserChatMembers")
   simulations     UserSimulation[] @relation("UserSimulations")
   activities      Activity[]     @relation("UserActivities")
+  
+  // Relaciones para notificaciones
+  sentNotifications      Notification[] @relation("SentNotifications")
+  receivedNotifications  Notification[] @relation("ReceivedNotifications")
+  
+  // Relación para estados de chat
+  chatStates             ChatUserState[] @relation("UserChatStates")
 }
 
 // Chat model - Para conversaciones
@@ -37,6 +44,43 @@ model Chat {
   // Relaciones
   messages    Message[]   @relation("ChatMessages")
   members     ChatMember[] @relation("ChatMembers")
+  
+  // Relación con notificaciones
+  notifications Notification[] @relation("ChatNotifications")
+  
+  // Relación para estados de chat
+  userStates    ChatUserState[] @relation("ChatUserStates")
+}
+
+// Modelo para gestionar el estado de un chat para un usuario específico
+model ChatUserState {
+  id                String    @id @default(uuid())
+  userId            String
+  chatId            String
+  
+  // Estados de visibilidad
+  isDeleted         Boolean   @default(false)
+  deletedAt         DateTime?
+  
+  // Estados de presencia y actividad
+  isOnline          Boolean   @default(false)    // Si el usuario está activo en este chat
+  lastSeen          DateTime  @default(now())    // Última vez que el usuario estuvo activo
+  isTyping          Boolean   @default(false)    // Si el usuario está escribiendo
+  lastTypingAt      DateTime? // Timestamp de cuando empezó a escribir
+  
+  // Control de lectura de mensajes
+  lastReadMessageId String?   // ID del último mensaje leído
+  unreadCount       Int       @default(0)        // Cantidad de mensajes no leídos
+  
+  // Configuración de notificaciones para este chat
+  isMuted           Boolean   @default(false)    // Si las notificaciones están silenciadas
+  
+  // Relaciones
+  user              User      @relation("UserChatStates", fields: [userId], references: [id])
+  chat              Chat      @relation("ChatUserStates", fields: [chatId], references: [id])
+  lastReadMessage   Message?  @relation("LastReadMessages", fields: [lastReadMessageId], references: [id])
+  
+  @@unique([userId, chatId])
 }
 
 // Tipo de chat
@@ -75,6 +119,31 @@ model Message {
   chat        Chat      @relation("ChatMessages", fields: [chatId], references: [id])
   replyTo     Message?  @relation("MessageReplies", fields: [replyToId], references: [id])
   replies     Message[] @relation("MessageReplies")
+  
+  // Relación con notificaciones
+  notifications Notification[] @relation("MessageNotifications")
+  
+  // Relación para mensajes leídos
+  readBy       ChatUserState[] @relation("LastReadMessages")
+}
+
+// Modelo de Notificaciones
+model Notification {
+  id            String            @id @default(uuid())
+  type          String            // Tipo de notificación (NEW_MESSAGE, USER_JOINED_CHAT, etc.)
+  content       String            // Contenido de la notificación
+  recipientId   String            // Usuario que recibe la notificación
+  senderId      String?           // Usuario que generó la notificación (opcional)
+  chatId        String?           // Chat relacionado (opcional)
+  messageId     String?           // Mensaje relacionado (opcional)
+  read          Boolean           @default(false) // Si la notificación ha sido leída
+  createdAt     DateTime          @default(now())
+  
+  // Relaciones
+  recipient     User              @relation("ReceivedNotifications", fields: [recipientId], references: [id])
+  sender        User?             @relation("SentNotifications", fields: [senderId], references: [id])
+  chat          Chat?             @relation("ChatNotifications", fields: [chatId], references: [id])
+  message       Message?          @relation("MessageNotifications", fields: [messageId], references: [id])
 }
 
 // Simulación Laboral

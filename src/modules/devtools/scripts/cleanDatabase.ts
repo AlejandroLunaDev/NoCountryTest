@@ -9,9 +9,15 @@ export const cleanDatabase = async () => {
   try {
     logger.info('Iniciando limpieza de la base de datos...');
 
-    // Eliminamos primero las entidades con dependencias
+    // 1. Eliminamos primero las entidades con más dependencias
+    logger.info('Eliminando notificaciones...');
+    await prisma.notification.deleteMany();
+
     logger.info('Eliminando mensajes...');
     await prisma.message.deleteMany();
+
+    logger.info('Eliminando estados de usuario en chats...');
+    await prisma.chatUserState.deleteMany();
 
     logger.info('Eliminando actividades...');
     await prisma.activity.deleteMany();
@@ -25,13 +31,14 @@ export const cleanDatabase = async () => {
     logger.info('Eliminando proyectos...');
     await prisma.project.deleteMany();
 
-    // Ahora eliminamos las entidades de nivel superior
+    // 2. Ahora eliminamos las entidades de nivel intermedio
     logger.info('Eliminando chats...');
     await prisma.chat.deleteMany();
 
     logger.info('Eliminando simulaciones...');
     await prisma.simulation.deleteMany();
 
+    // 3. Finalmente eliminamos las entidades principales
     logger.info('Eliminando usuarios...');
     await prisma.user.deleteMany();
 

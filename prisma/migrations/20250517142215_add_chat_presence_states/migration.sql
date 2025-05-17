@@ -1,0 +1,11 @@
+-- AlterTable
+ALTER TABLE "ChatUserState" ADD COLUMN     "isMuted" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "isOnline" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "isTyping" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "lastReadMessageId" TEXT,
+ADD COLUMN     "lastSeen" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN     "lastTypingAt" TIMESTAMP(3),
+ADD COLUMN     "unreadCount" INTEGER NOT NULL DEFAULT 0;
+
+-- AddForeignKey
+ALTER TABLE "ChatUserState" ADD CONSTRAINT "ChatUserState_lastReadMessageId_fkey" FOREIGN KEY ("lastReadMessageId") REFERENCES "Message"("id") ON DELETE SET NULL ON UPDATE CASCADE;

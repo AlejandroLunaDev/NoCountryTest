@@ -4,6 +4,7 @@ export interface CreateChatDTO {
   name?: string;
   type: ChatType;
   memberIds: string[];
+  creatorId?: string;
 }
 
 export interface AddMemberDTO {
