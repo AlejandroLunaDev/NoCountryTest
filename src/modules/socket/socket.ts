@@ -4,6 +4,9 @@ import logger from '../../utils/logger';
 import { notificationService } from '../notifications/services/notificationService';
 import { chatPresenceService } from '../chats/services/chatPresenceService';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import { setupChatServiceSocketIO } from '../chats/services/chatService';
+import { setupChatPresenceSocketIO } from '../chats/services/chatPresenceService';
+import { setupMessageServiceSocketIO } from '../messages/services/messageService';
 
 // Función auxiliar para reconectar Prisma si es necesario
 const ensurePrismaConnection = async () => {
@@ -34,6 +37,11 @@ const ensurePrismaConnection = async () => {
 };
 
 export const setupSocketHandlers = (io: SocketServer) => {
+  // Configurar el servicio de chat con Socket.IO
+  setupChatServiceSocketIO(io);
+  setupChatPresenceSocketIO(io);
+  setupMessageServiceSocketIO(io); // Configurar servicio de mensajes
+
   // Manejar conexiones de socket
   io.on('connection', socket => {
     logger.info('Nuevo cliente conectado', { socketId: socket.id });
@@ -87,6 +95,61 @@ export const setupSocketHandlers = (io: SocketServer) => {
             replyTo: true
           }
         });
+
+        // NUEVO: Buscar usuarios que tienen el chat eliminado (excepto el remitente)
+        const usersWithDeletedChat = await prisma.chatUserState.findMany({
+          where: {
+            chatId,
+            isDeleted: true,
+            userId: { not: senderId }
+          },
+          select: {
+            userId: true
+          }
+        });
+
+        // NUEVO: Restaurar el chat para estos usuarios
+        for (const userState of usersWithDeletedChat) {
+          try {
+            // Restaurar el chat para este usuario
+            await prisma.chatUserState.update({
+              where: {
+                userId_chatId: {
+                  userId: userState.userId,
+                  chatId
+                }
+              },
+              data: {
+                isDeleted: false,
+                deletedAt: null
+              }
+            });
+
+            // Notificar al usuario que el chat ha sido restaurado
+            io.to(`user:${userState.userId}`).emit('chat_restored', {
+              chatId,
+              restoredBecause: 'new_message',
+              messageFrom: {
+                id: senderId,
+                name: message.sender.name
+              },
+              messagePreview:
+                content.substring(0, 50) + (content.length > 50 ? '...' : '')
+            });
+
+            logger.info(
+              `Chat ${chatId} restaurado para usuario ${userState.userId} debido a nuevo mensaje`
+            );
+          } catch (restoreError) {
+            logger.error(
+              `Error al restaurar chat ${chatId} para usuario ${userState.userId}`,
+              {
+                error: restoreError
+              }
+            );
+            // No lanzamos el error para no interrumpir el flujo principal
+          }
+        }
 
         // Emitir mensaje a todos los clientes en la sala de chat
         io.to(chatId).emit('message_received', message);
