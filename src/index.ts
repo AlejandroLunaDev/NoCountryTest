@@ -16,6 +16,7 @@ import { setupChatServiceSocketIO } from './modules/chats/services/chatService';
 import { errorHandler } from './middlewares/errorHandler';
 import morganMiddleware from './middlewares/morgan';
 import logger from './utils/logger';
+import simulationModule from './modules/simulations';
 
 // Inicializar Express
 const app = express();
@@ -67,7 +68,8 @@ app.use(
 // Rutas API
 app.use('/api/chats', chatRoutes);
 app.use('/api/messages', messageRoutes);
-app.use('/api/simulations', simulationsRoutes);
+app.use('/api/simulations', simulationModule.routes.main);
+app.use('/api/simulations', simulationModule.routes.matching);
 app.use('/api/devtools', devtoolsRoutes);
 app.use('/api/users', userRoutes);
 

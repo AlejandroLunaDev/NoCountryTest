@@ -1,7 +1,14 @@
 import { Request, Response } from 'express';
 import { simulationService } from '../services';
 import { activityService } from '../services/activity';
-import { ActivityType } from '@prisma/client';
+import { ActivityType, SimulationStatus } from '@prisma/client';
+import prisma from '../../../config/prisma';
+
+// Tipo de proyecto (temporal hasta que se genere en Prisma)
+enum ProjectType {
+  OPEN = 'OPEN',
+  COMPANY = 'COMPANY'
+}
 
 export const simulationController = {
   async createSimulation(req: Request, res: Response) {
@@ -116,7 +123,15 @@ export const simulationController = {
   async createProject(req: Request, res: Response) {
     try {
       const { simulationId } = req.params;
-      const { name, description } = req.body;
+      const {
+        name,
+        description,
+        projectType = ProjectType.OPEN,
+        companyId,
+        requirements,
+        scope,
+        resources
+      } = req.body;
 
       // Validar que la simulación exista
       const simulation = await simulationService.getSimulationById(
@@ -133,7 +148,12 @@ export const simulationController = {
       const project = await simulationService.createProject({
         name,
         description,
-        simulationId
+        simulationId,
+        projectType,
+        companyId,
+        requirements,
+        scope,
+        resources
       });
 
       res.status(201).json({
@@ -290,6 +310,188 @@ export const simulationController = {
       res.status(500).json({
         success: false,
         message: 'Error al obtener estadísticas de actividad',
+        error: error.message
+      });
+    }
+  },
+
+  async createWeeklySchedule(req: Request, res: Response) {
+    try {
+      const { simulationId } = req.params;
+      const scheduleData = req.body;
+
+      // Validar que la simulación exista
+      const simulation = await simulationService.getSimulationById(
+        simulationId
+      );
+      if (!simulation) {
+        return res.status(404).json({
+          success: false,
+          message: 'Simulación no encontrada'
+        });
+      }
+
+      // Validar semana dentro del rango 1-5
+      if (scheduleData.weekNumber < 1 || scheduleData.weekNumber > 5) {
+        return res.status(400).json({
+          success: false,
+          message: 'El número de semana debe estar entre 1 y 5'
+        });
+      }
+
+      // Validar fechas
+      const startDate = new Date(scheduleData.startDate);
+      const endDate = new Date(scheduleData.endDate);
+
+      if (endDate <= startDate) {
+        return res.status(400).json({
+          success: false,
+          message:
+            'La fecha de finalización debe ser posterior a la fecha de inicio'
+        });
+      }
+
+      // Crear el cronograma
+      const schedule = await simulationService.createWeeklySchedule({
+        ...scheduleData,
+        simulationId
+      });
+
+      res.status(201).json({
+        success: true,
+        data: schedule
+      });
+    } catch (error: any) {
+      console.error('Error al crear cronograma semanal:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error al crear cronograma semanal',
+        error: error.message
+      });
+    }
+  },
+
+  async getWeeklySchedules(req: Request, res: Response) {
+    try {
+      const { simulationId } = req.params;
+
+      // Validar que la simulación exista
+      const simulation = await simulationService.getSimulationById(
+        simulationId
+      );
+      if (!simulation) {
+        return res.status(404).json({
+          success: false,
+          message: 'Simulación no encontrada'
+        });
+      }
+
+      // Obtener todos los cronogramas
+      const schedules = await simulationService.getWeeklySchedule(simulationId);
+
+      res.status(200).json({
+        success: true,
+        data: schedules
+      });
+    } catch (error: any) {
+      console.error('Error al obtener cronogramas:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error al obtener cronogramas',
+        error: error.message
+      });
+    }
+  },
+
+  async getWeeklyScheduleByWeek(req: Request, res: Response) {
+    try {
+      const { simulationId, weekNumber } = req.params;
+
+      // Validar que la simulación exista
+      const simulation = await simulationService.getSimulationById(
+        simulationId
+      );
+      if (!simulation) {
+        return res.status(404).json({
+          success: false,
+          message: 'Simulación no encontrada'
+        });
+      }
+
+      // Obtener el cronograma específico
+      const schedule = await simulationService.getWeeklySchedule(
+        simulationId,
+        parseInt(weekNumber)
+      );
+
+      if (!schedule) {
+        return res.status(404).json({
+          success: false,
+          message: 'Cronograma no encontrado para la semana especificada'
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        data: schedule
+      });
+    } catch (error: any) {
+      console.error('Error al obtener cronograma semanal:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error al obtener cronograma semanal',
+        error: error.message
+      });
+    }
+  },
+
+  async createTeam(req: Request, res: Response) {
+    try {
+      const { simulationId, projectId } = req.params;
+      const { name, members } = req.body;
+
+      // Validar que la simulación exista
+      const simulation = await simulationService.getSimulationById(
+        simulationId
+      );
+      if (!simulation) {
+        return res.status(404).json({
+          success: false,
+          message: 'Simulación no encontrada'
+        });
+      }
+
+      // Validar que el proyecto exista y pertenezca a la simulación
+      const project = await prisma.project.findFirst({
+        where: {
+          id: projectId,
+          simulationId
+        }
+      });
+
+      if (!project) {
+        return res.status(404).json({
+          success: false,
+          message: 'Proyecto no encontrado en esta simulación'
+        });
+      }
+
+      // Crear el equipo
+      const team = await simulationService.createTeam({
+        projectId,
+        name,
+        members
+      });
+
+      res.status(201).json({
+        success: true,
+        data: team
+      });
+    } catch (error: any) {
+      console.error('Error al crear equipo:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error al crear equipo',
         error: error.message
       });
     }

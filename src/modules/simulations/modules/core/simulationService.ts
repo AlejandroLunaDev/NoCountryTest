@@ -1,20 +1,14 @@
-import prisma from '../../../config/prisma';
+import prisma from '../../../../config/prisma';
+import { SimulationStatus } from '@prisma/client';
+import { addWeeks, addDays } from 'date-fns';
+import { ISimulationService } from '../../interfaces/ISimulationService';
 import {
   CreateSimulationDTO,
-  EnrollUserDTO,
-  CreateProjectDTO,
   QuerySimulationsDTO,
-  CreateScheduleDTO,
-  CreateTaskDTO,
-  CreateMeetingDTO,
-  CreateDeliverableDTO,
-  CloseSimulationDTO,
-  CreateTeamDTO
-} from '../types';
-import { SimulationStatus, ProjectType } from '@prisma/client';
-import { addWeeks, addDays } from 'date-fns';
+  CloseSimulationDTO
+} from '../../types';
 
-export const simulationService = {
+class SimulationService implements ISimulationService {
   async createSimulation(data: CreateSimulationDTO) {
     const { name, description, type, startDate, endDate, status, companyId } =
       data;
@@ -52,7 +46,7 @@ export const simulationService = {
     }
 
     return simulation;
-  },
+  }
 
   async getSimulationById(id: string) {
     return prisma.simulation.findUnique({
@@ -67,8 +61,12 @@ export const simulationService = {
                 email: true,
                 role: true,
                 profileType: true,
-                technicalStack: true,
-                experienceYears: true
+                experienceYears: true,
+                userSkills: {
+                  include: {
+                    skill: true
+                  }
+                }
               }
             }
           }
@@ -101,137 +99,7 @@ export const simulationService = {
         }
       }
     });
-  },
-
-  async enrollUser(data: EnrollUserDTO) {
-    const {
-      userId,
-      simulationId,
-      role,
-      vertical,
-      technicalStack,
-      experienceYears
-    } = data;
-
-    // Primero, actualizar información técnica del usuario si se proporcionó
-    if (technicalStack || experienceYears !== undefined) {
-      const updateData: any = {};
-
-      if (technicalStack) {
-        updateData.technicalStack = technicalStack;
-      }
-
-      if (experienceYears !== undefined) {
-        updateData.experienceYears = experienceYears;
-      }
-
-      // Actualizar el perfil técnico del usuario
-      await prisma.user.update({
-        where: { id: userId },
-        data: {
-          ...updateData,
-          profileType: role // Asumimos que el rol funciona como profileType
-        }
-      });
-    }
-
-    // Luego inscribir al usuario en la simulación
-    return prisma.userSimulation.create({
-      data: {
-        userId,
-        simulationId,
-        role,
-        vertical
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            profileType: true,
-            technicalStack: true,
-            experienceYears: true
-          }
-        },
-        simulation: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            status: true
-          }
-        }
-      }
-    });
-  },
-
-  async createProject(data: CreateProjectDTO) {
-    const {
-      name,
-      description,
-      simulationId,
-      projectType,
-      companyId,
-      requirements,
-      scope,
-      resources
-    } = data;
-
-    return prisma.project.create({
-      data: {
-        name,
-        description,
-        simulationId,
-        projectType,
-        companyId,
-        requirements,
-        scope,
-        resources: resources ? resources : undefined
-      }
-    });
-  },
-
-  async createTeam(data: CreateTeamDTO) {
-    const { projectId, name, members } = data;
-
-    // Crear el equipo
-    const team = await prisma.projectTeam.create({
-      data: {
-        projectId,
-        name
-      }
-    });
-
-    // Agregar miembros al equipo
-    for (const member of members) {
-      await prisma.projectTeamMember.create({
-        data: {
-          teamId: team.id,
-          userId: member.userId,
-          role: member.role
-        }
-      });
-    }
-
-    return prisma.projectTeam.findUnique({
-      where: { id: team.id },
-      include: {
-        members: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                profileType: true
-              }
-            }
-          }
-        }
-      }
-    });
-  },
+  }
 
   async getSimulations(query: QuerySimulationsDTO) {
     const { userId, companyId, status, limit = 10, offset = 0 } = query;
@@ -289,121 +157,7 @@ export const simulationService = {
         }
       }
     });
-  },
-
-  async createWeeklySchedule(data: CreateScheduleDTO) {
-    const {
-      simulationId,
-      weekNumber,
-      startDate,
-      endDate,
-      theme,
-      objectives,
-      tasks,
-      meetings,
-      deliverables
-    } = data;
-
-    // Crear el cronograma semanal
-    const schedule = await prisma.weeklySchedule.create({
-      data: {
-        simulationId,
-        weekNumber,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
-        theme,
-        objectives
-      }
-    });
-
-    // Agregar tareas si se proporcionaron
-    if (tasks && tasks.length > 0) {
-      for (const task of tasks) {
-        await prisma.task.create({
-          data: {
-            weeklyScheduleId: schedule.id,
-            title: task.title,
-            description: task.description,
-            dueDate: new Date(task.dueDate),
-            assignedRoles: task.assignedRoles
-          }
-        });
-      }
-    }
-
-    // Agregar reuniones si se proporcionaron
-    if (meetings && meetings.length > 0) {
-      for (const meeting of meetings) {
-        await prisma.meeting.create({
-          data: {
-            weeklyScheduleId: schedule.id,
-            title: meeting.title,
-            description: meeting.description,
-            dateTime: new Date(meeting.dateTime),
-            duration: meeting.duration,
-            isRequired: meeting.isRequired ?? true
-          }
-        });
-      }
-    }
-
-    // Agregar entregables si se proporcionaron
-    if (deliverables && deliverables.length > 0) {
-      for (const deliverable of deliverables) {
-        await prisma.deliverable.create({
-          data: {
-            weeklyScheduleId: schedule.id,
-            title: deliverable.title,
-            description: deliverable.description,
-            dueDate: new Date(deliverable.dueDate),
-            assignedRoles: deliverable.assignedRoles
-          }
-        });
-      }
-    }
-
-    // Retornar el cronograma con todos sus elementos
-    return prisma.weeklySchedule.findUnique({
-      where: { id: schedule.id },
-      include: {
-        tasks: true,
-        meetings: true,
-        deliverables: true
-      }
-    });
-  },
-
-  async getWeeklySchedule(simulationId: string, weekNumber?: number) {
-    if (weekNumber) {
-      // Obtener cronograma específico
-      return prisma.weeklySchedule.findUnique({
-        where: {
-          simulationId_weekNumber: {
-            simulationId,
-            weekNumber
-          }
-        },
-        include: {
-          tasks: true,
-          meetings: true,
-          deliverables: true
-        }
-      });
-    } else {
-      // Obtener todos los cronogramas de la simulación
-      return prisma.weeklySchedule.findMany({
-        where: { simulationId },
-        include: {
-          tasks: true,
-          meetings: true,
-          deliverables: true
-        },
-        orderBy: {
-          weekNumber: 'asc'
-        }
-      });
-    }
-  },
+  }
 
   async updateSimulationStatus(id: string, status: SimulationStatus) {
     return prisma.simulation.update({
@@ -412,7 +166,7 @@ export const simulationService = {
         status
       }
     });
-  },
+  }
 
   async closeSimulation(id: string, data?: CloseSimulationDTO) {
     // Marcar la simulación como completada
@@ -528,4 +282,6 @@ export const simulationService = {
       closedAt: new Date()
     };
   }
-};
+}
+
+export const simulationService = new SimulationService();

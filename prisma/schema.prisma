@@ -19,11 +19,17 @@ model User {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   
+  // Información técnica y profesional
+  profileType     String?        // Tipo de perfil: "UX/UI", "PM", "QA", "Frontend", "Backend", "Fullstack", "Community Manager", "Team Leader", "Tech Lead", etc.
+  experienceYears Int?           // Años de experiencia
+  userSkills      UserSkill[]    @relation("UserSkills") // Relación con habilidades técnicas
+  
   // Relaciones con otras entidades
   sentMessages    Message[]      @relation("SentMessages")
   receivedChats   ChatMember[]   @relation("UserChatMembers")
   simulations     UserSimulation[] @relation("UserSimulations")
   activities      Activity[]     @relation("UserActivities")
+  projectTeams    ProjectTeamMember[] @relation("UserProjectTeams")
   
   // Relaciones para notificaciones
   sentNotifications      Notification[] @relation("SentNotifications")
@@ -31,6 +37,53 @@ model User {
   
   // Relación para estados de chat
   chatStates             ChatUserState[] @relation("UserChatStates")
+}
+
+// Modelo de habilidades técnicas
+model Skill {
+  id            String      @id @default(uuid())
+  name          String      // Nombre de la habilidad (React, Node.js, PostgreSQL, etc.)
+  category      SkillCategory // Categoría de la habilidad (Frontend, Backend, Database, etc.)
+  userSkills    UserSkill[] @relation("SkillRelation")
+  
+  @@unique([name, category])
+}
+
+// Relación entre usuarios y habilidades con nivel de competencia
+model UserSkill {
+  id            String      @id @default(uuid())
+  userId        String
+  skillId       String
+  proficiencyLevel ProficiencyLevel // Nivel de competencia
+  yearsOfExperience Int?    // Años de experiencia específica con esta tecnología
+  isMainSkill   Boolean     @default(false) // Si es una habilidad principal del usuario
+  
+  // Relaciones
+  user          User        @relation("UserSkills", fields: [userId], references: [id])
+  skill         Skill       @relation("SkillRelation", fields: [skillId], references: [id])
+  
+  @@unique([userId, skillId])
+}
+
+// Categorías de habilidades
+enum SkillCategory {
+  FRONTEND
+  BACKEND
+  DATABASE
+  DEVOPS
+  MOBILE
+  DESIGN
+  TESTING
+  PROJECT_MANAGEMENT
+  OTHERS
+}
+
+// Niveles de competencia
+enum ProficiencyLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
 }
 
 // Chat model - Para conversaciones
@@ -157,11 +210,85 @@ model Simulation {
   status      SimulationStatus
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  companyId   String?   // ID de la empresa en caso de simulación tipo COMPANY
   
   // Relaciones
   users       UserSimulation[] @relation("SimulationUsers")
   projects    Project[]    @relation("SimulationProjects")
   activities  Activity[]   @relation("SimulationActivities")
+  schedules   WeeklySchedule[] @relation("SimulationSchedules")
+  finalReport SimulationReport? @relation("SimulationReport")
+}
+
+// Modelo para el cronograma semanal
+model WeeklySchedule {
+  id            String    @id @default(uuid())
+  simulationId  String
+  weekNumber    Int       // Número de semana (1-5)
+  startDate     DateTime
+  endDate       DateTime
+  theme         String?   // Tema de la semana
+  objectives    String?   // Objetivos generales de la semana
+  
+  // Relaciones
+  simulation    Simulation @relation("SimulationSchedules", fields: [simulationId], references: [id])
+  tasks         Task[]     @relation("ScheduleTasks")
+  meetings      Meeting[]  @relation("ScheduleMeetings")
+  deliverables  Deliverable[] @relation("ScheduleDeliverables")
+  
+  @@unique([simulationId, weekNumber])
+}
+
+// Tareas asociadas al cronograma
+model Task {
+  id                String    @id @default(uuid())
+  weeklyScheduleId  String
+  title             String
+  description       String
+  dueDate           DateTime
+  assignedRoles     String[]  // Array de roles a los que aplica la tarea
+  
+  // Relaciones
+  weeklySchedule    WeeklySchedule @relation("ScheduleTasks", fields: [weeklyScheduleId], references: [id])
+}
+
+// Reuniones programadas
+model Meeting {
+  id                String    @id @default(uuid())
+  weeklyScheduleId  String
+  title             String
+  description       String?
+  dateTime          DateTime
+  duration          Int       // Duración en minutos
+  isRequired        Boolean   @default(true)
+  
+  // Relaciones
+  weeklySchedule    WeeklySchedule @relation("ScheduleMeetings", fields: [weeklyScheduleId], references: [id])
+}
+
+// Entregables
+model Deliverable {
+  id                String    @id @default(uuid())
+  weeklyScheduleId  String
+  title             String
+  description       String
+  dueDate           DateTime
+  assignedRoles     String[]  // Array de roles responsables
+  
+  // Relaciones
+  weeklySchedule    WeeklySchedule @relation("ScheduleDeliverables", fields: [weeklyScheduleId], references: [id])
+}
+
+// Reporte final de simulación
+model SimulationReport {
+  id              String    @id @default(uuid())
+  simulationId    String    @unique
+  generatedAt     DateTime  @default(now())
+  metrics         Json      // Métricas y estadísticas en formato JSON
+  conclusions     String?   // Resumen y conclusiones
+  
+  // Relaciones
+  simulation      Simulation @relation("SimulationReport", fields: [simulationId], references: [id])
 }
 
 enum SimulationType {
@@ -198,11 +325,47 @@ model Project {
   name          String
   description   String
   simulationId  String
+  projectType   ProjectType // Tipo de proyecto: OPEN o COMPANY
+  companyId     String?   // ID de la empresa en caso de ser un proyecto asignado
+  requirements  String?   // Requisitos específicos
+  scope         String?   // Alcance del proyecto
+  resources     Json?     // Recursos disponibles (en formato JSON)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   
   // Relaciones
   simulation    Simulation @relation("SimulationProjects", fields: [simulationId], references: [id])
+  teams         ProjectTeam[] @relation("ProjectTeams")
+}
+
+enum ProjectType {
+  OPEN    // Proyecto propio en simulaciones abiertas
+  COMPANY // Proyecto asignado por empresa
+}
+
+// Equipos asignados a cada proyecto
+model ProjectTeam {
+  id          String    @id @default(uuid())
+  projectId   String
+  name        String
+  
+  // Relaciones
+  project     Project   @relation("ProjectTeams", fields: [projectId], references: [id])
+  members     ProjectTeamMember[] @relation("TeamMembers")
+}
+
+// Miembros del equipo de proyecto
+model ProjectTeamMember {
+  id            String    @id @default(uuid())
+  teamId        String
+  userId        String
+  role          String    // Rol específico en este proyecto
+  
+  // Relaciones
+  team          ProjectTeam @relation("TeamMembers", fields: [teamId], references: [id])
+  user          User     @relation("UserProjectTeams", fields: [userId], references: [id])
+  
+  @@unique([teamId, userId])
 }
 
 // Actividades/Eventos registrados

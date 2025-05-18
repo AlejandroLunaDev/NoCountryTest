@@ -168,7 +168,7 @@ router.post('/:id/close', simulationController.closeSimulation);
  * /api/simulations/{simulationId}/users:
  *   post:
  *     summary: Inscribir un usuario a una simulación
- *     tags: [Simulations]
+ *     tags: [Enrollment]
  *     parameters:
  *       - in: path
  *         name: simulationId
@@ -219,7 +219,7 @@ router.post('/:simulationId/users', simulationController.enrollUser);
  * /api/simulations/users/{userId}/activity:
  *   get:
  *     summary: Obtener actividad de un usuario
- *     tags: [Simulations]
+ *     tags: [Activity]
  *     parameters:
  *       - in: path
  *         name: userId
@@ -269,7 +269,7 @@ router.get('/users/:userId/activity', simulationController.getUserActivity);
  * /api/simulations/{simulationId}/projects:
  *   post:
  *     summary: Asignar un proyecto a una simulación
- *     tags: [Simulations]
+ *     tags: [Projects]
  *     parameters:
  *       - in: path
  *         name: simulationId
@@ -315,7 +315,7 @@ router.post('/:simulationId/projects', simulationController.createProject);
  * /api/simulations/{simulationId}/activity:
  *   get:
  *     summary: Obtener actividad de una simulación
- *     tags: [Simulations]
+ *     tags: [Activity]
  *     parameters:
  *       - in: path
  *         name: simulationId
@@ -356,7 +356,7 @@ router.get(
  * /api/simulations/{simulationId}/activity/stats:
  *   get:
  *     summary: Obtener estadísticas de actividad de una simulación
- *     tags: [Simulations]
+ *     tags: [Activity]
  *     parameters:
  *       - in: path
  *         name: simulationId
@@ -378,6 +378,251 @@ router.get(
 router.get(
   '/:simulationId/activity/stats',
   simulationController.getActivityStats
+);
+
+/**
+ * @swagger
+ * /api/simulations/{simulationId}/schedules:
+ *   post:
+ *     summary: Crear un cronograma semanal para una simulación
+ *     tags: [Schedules]
+ *     parameters:
+ *       - in: path
+ *         name: simulationId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         required: true
+ *         description: ID de la simulación
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - weekNumber
+ *               - startDate
+ *               - endDate
+ *             properties:
+ *               weekNumber:
+ *                 type: integer
+ *                 minimum: 1
+ *                 maximum: 5
+ *                 description: Número de semana (1-5)
+ *               startDate:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Fecha de inicio de la semana
+ *               endDate:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Fecha de finalización de la semana
+ *               theme:
+ *                 type: string
+ *                 description: Tema de la semana (opcional)
+ *               objectives:
+ *                 type: string
+ *                 description: Objetivos de la semana (opcional)
+ *               tasks:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     title:
+ *                       type: string
+ *                     description:
+ *                       type: string
+ *                     dueDate:
+ *                       type: string
+ *                       format: date-time
+ *                     assignedRoles:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *               meetings:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     title:
+ *                       type: string
+ *                     description:
+ *                       type: string
+ *                     dateTime:
+ *                       type: string
+ *                       format: date-time
+ *                     duration:
+ *                       type: integer
+ *                       description: Duración en minutos
+ *                     isRequired:
+ *                       type: boolean
+ *               deliverables:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     title:
+ *                       type: string
+ *                     description:
+ *                       type: string
+ *                     dueDate:
+ *                       type: string
+ *                       format: date-time
+ *                     assignedRoles:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *     responses:
+ *       201:
+ *         description: Cronograma creado exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
+router.post(
+  '/:simulationId/schedules',
+  simulationController.createWeeklySchedule
+);
+
+/**
+ * @swagger
+ * /api/simulations/{simulationId}/schedules:
+ *   get:
+ *     summary: Obtener todos los cronogramas semanales de una simulación
+ *     tags: [Schedules]
+ *     parameters:
+ *       - in: path
+ *         name: simulationId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         required: true
+ *         description: ID de la simulación
+ *     responses:
+ *       200:
+ *         description: Lista de cronogramas semanales
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
+router.get('/:simulationId/schedules', simulationController.getWeeklySchedules);
+
+/**
+ * @swagger
+ * /api/simulations/{simulationId}/schedules/{weekNumber}:
+ *   get:
+ *     summary: Obtener el cronograma de una semana específica
+ *     tags: [Schedules]
+ *     parameters:
+ *       - in: path
+ *         name: simulationId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         required: true
+ *         description: ID de la simulación
+ *       - in: path
+ *         name: weekNumber
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 5
+ *         required: true
+ *         description: Número de semana (1-5)
+ *     responses:
+ *       200:
+ *         description: Cronograma encontrado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
+router.get(
+  '/:simulationId/schedules/:weekNumber',
+  simulationController.getWeeklyScheduleByWeek
+);
+
+/**
+ * @swagger
+ * /api/simulations/{simulationId}/projects/{projectId}/teams:
+ *   post:
+ *     summary: Crear un equipo para un proyecto
+ *     tags: [Teams]
+ *     parameters:
+ *       - in: path
+ *         name: simulationId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         required: true
+ *         description: ID de la simulación
+ *       - in: path
+ *         name: projectId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         required: true
+ *         description: ID del proyecto
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - members
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: Nombre del equipo
+ *               members:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   required:
+ *                     - userId
+ *                     - role
+ *                   properties:
+ *                     userId:
+ *                       type: string
+ *                       format: uuid
+ *                     role:
+ *                       type: string
+ *     responses:
+ *       201:
+ *         description: Equipo creado exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/ServerError'
+ */
+router.post(
+  '/:simulationId/projects/:projectId/teams',
+  simulationController.createTeam
 );
 
 export default router;
