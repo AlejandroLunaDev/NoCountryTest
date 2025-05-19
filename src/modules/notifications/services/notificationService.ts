@@ -166,7 +166,7 @@ class NotificationService {
 
       if (dbAvailable) {
         // Obtener los participantes del chat que no son el remitente
-        const chatParticipants = await prisma.chatParticipant.findMany({
+        const chatParticipants = await prisma.chatMember.findMany({
           where: {
             chatId: messageData.chatId,
             userId: {
@@ -179,22 +179,24 @@ class NotificationService {
         });
 
         // Crear notificaciones para todos los participantes
-        const notificationPromises = chatParticipants.map(participant => {
-          const notificationData: CreateNotificationDTO = {
-            type: NotificationType.NEW_MESSAGE,
-            recipientId: participant.userId,
-            senderId: messageData.senderId,
-            chatId: messageData.chatId,
-            messageId: messageData.id,
-            content: `Nuevo mensaje de ${
-              messageData.sender.name
-            }: ${messageData.content.substring(0, 50)}${
-              messageData.content.length > 50 ? '...' : ''
-            }`
-          };
+        const notificationPromises = chatParticipants.map(
+          (participant: { userId: string }) => {
+            const notificationData: CreateNotificationDTO = {
+              type: NotificationType.NEW_MESSAGE,
+              recipientId: participant.userId,
+              senderId: messageData.senderId,
+              chatId: messageData.chatId,
+              messageId: messageData.id,
+              content: `Nuevo mensaje de ${
+                messageData.sender.name
+              }: ${messageData.content.substring(0, 50)}${
+                messageData.content.length > 50 ? '...' : ''
+              }`
+            };
 
-          return this.createNotification(notificationData);
-        });
+            return this.createNotification(notificationData);
+          }
+        );
 
         await Promise.all(notificationPromises);
       } else {

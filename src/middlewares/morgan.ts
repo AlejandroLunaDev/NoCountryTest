@@ -1,4 +1,5 @@
 import morgan from 'morgan';
+import { Request, Response } from 'express';
 import { config } from '../config/env';
 import logger from '../utils/logger';
 
@@ -14,7 +15,7 @@ const options = {
     format: ':remote-addr :method :url :status :response-time ms',
     options: {
       stream: logger.stream,
-      skip: (req, res) => res.statusCode < 400 // Solo log errores en producción
+      skip: (req: Request, res: Response) => res.statusCode < 400 // Solo log errores en producción
     }
   }
 };

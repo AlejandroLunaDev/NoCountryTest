@@ -8,8 +8,9 @@ const formats = winston.format.combine(
   winston.format.metadata({ fillExcept: ['message', 'level', 'timestamp'] }),
   winston.format.colorize(),
   winston.format.printf(info => {
+    const metadata = info.metadata as Record<string, unknown>;
     return `${info.timestamp} ${info.level}: ${info.message} ${
-      Object.keys(info.metadata).length ? JSON.stringify(info.metadata) : ''
+      Object.keys(metadata).length ? JSON.stringify(metadata) : ''
     }`;
   })
 );

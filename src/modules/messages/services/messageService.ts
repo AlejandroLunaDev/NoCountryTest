@@ -42,14 +42,6 @@ export const messageService = {
         isDeleted: true,
         userId: { not: senderId } // No incluir al remitente
       },
-      select: {
-        userId: true,
-        user: {
-          select: {
-            name: true
-          }
-        }
-      },
       include: {
         user: {
           select: {

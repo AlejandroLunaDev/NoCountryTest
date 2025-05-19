@@ -67,7 +67,6 @@ export const simulationService = {
                 email: true,
                 role: true,
                 profileType: true,
-                technicalStack: true,
                 experienceYears: true
               }
             }
@@ -104,22 +103,11 @@ export const simulationService = {
   },
 
   async enrollUser(data: EnrollUserDTO) {
-    const {
-      userId,
-      simulationId,
-      role,
-      vertical,
-      technicalStack,
-      experienceYears
-    } = data;
+    const { userId, simulationId, role, vertical, experienceYears } = data;
 
     // Primero, actualizar información técnica del usuario si se proporcionó
-    if (technicalStack || experienceYears !== undefined) {
+    if (experienceYears !== undefined) {
       const updateData: any = {};
-
-      if (technicalStack) {
-        updateData.technicalStack = technicalStack;
-      }
 
       if (experienceYears !== undefined) {
         updateData.experienceYears = experienceYears;
@@ -151,7 +139,6 @@ export const simulationService = {
             email: true,
             role: true,
             profileType: true,
-            technicalStack: true,
             experienceYears: true
           }
         },

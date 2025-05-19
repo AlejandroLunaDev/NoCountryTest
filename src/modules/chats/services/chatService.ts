@@ -78,7 +78,7 @@ export const chatService = {
         // Para cada miembro, emitir un evento a su canal personalizado
         memberIds.forEach(userId => {
           // No notificar al creador, solo a los demás usuarios
-          if (userId !== creatorId) {
+          if (userId !== creatorId && io !== null) {
             io.to(`user:${userId}`).emit('new_chat', {
               chatId: chat.id,
               chatName: chat.name,

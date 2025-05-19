@@ -2,7 +2,8 @@ import {
   ChatType,
   SimulationType,
   SimulationStatus,
-  ActivityType
+  ActivityType,
+  ProjectType
 } from '@prisma/client';
 
 export const mockUsers = [
@@ -82,13 +83,15 @@ export const mockProjects = [
     id: '1',
     name: 'Proyecto E-Commerce',
     description: 'Tienda online para venta de productos electrónicos',
-    simulationId: '1'
+    simulationId: '1',
+    projectType: ProjectType.OPEN
   },
   {
     id: '2',
     name: 'Proyecto Red Social',
     description: 'Aplicación de red social para profesionales',
-    simulationId: '2'
+    simulationId: '2',
+    projectType: ProjectType.COMPANY
   }
 ];
 
