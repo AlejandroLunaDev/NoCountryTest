@@ -59,9 +59,41 @@ export const setupSocketHandlers = (io: SocketServer) => {
     });
 
     // Unirse a una sala de chat
-    socket.on('join_chat', (chatId: string) => {
-      socket.join(chatId);
-      logger.info('Cliente unido a chat', { socketId: socket.id, chatId });
+    socket.on('join_chat', async data => {
+      try {
+        const { chatId, userId } =
+          typeof data === 'object' && data
+            ? data
+            : { chatId: data, userId: null };
+
+        socket.join(chatId);
+        logger.info('Cliente unido a chat', {
+          socketId: socket.id,
+          chatId,
+          userId
+        });
+
+        // Si tenemos el userId, actualizar el estado de presencia
+        if (userId) {
+          try {
+            await chatPresenceService.updatePresence(userId, chatId, true);
+            logger.info('Estado de presencia actualizado', {
+              userId,
+              chatId,
+              isOnline: true
+            });
+          } catch (presenceError) {
+            logger.error('Error al actualizar estado de presencia', {
+              error: presenceError,
+              userId,
+              chatId
+            });
+            // No lanzamos el error para no interrumpir el flujo principal
+          }
+        }
+      } catch (error) {
+        logger.error('Error al unirse al chat', { error });
+      }
     });
 
     // Manejar mensajes nuevos
@@ -261,8 +293,49 @@ export const setupSocketHandlers = (io: SocketServer) => {
     });
 
     // Manejar desconexión
-    socket.on('disconnect', () => {
-      logger.info('Cliente desconectado', { socketId: socket.id });
+    socket.on('disconnect', async () => {
+      try {
+        // Obtener el userId del socket
+        const userId = Object.keys(socket.rooms)
+          .find(room => room.startsWith('user:'))
+          ?.replace('user:', '');
+
+        if (userId) {
+          // Buscar todos los chats a los que el usuario está unido
+          const chatMembers = await prisma.chatMember.findMany({
+            where: { userId },
+            select: { chatId: true }
+          });
+
+          // Actualizar estado de presencia en todos los chats
+          for (const member of chatMembers) {
+            try {
+              await chatPresenceService.updatePresence(
+                userId,
+                member.chatId,
+                false
+              );
+              logger.info('Estado de presencia actualizado a offline', {
+                userId,
+                chatId: member.chatId
+              });
+            } catch (presenceError) {
+              logger.error(
+                'Error al actualizar estado de presencia a offline',
+                {
+                  error: presenceError,
+                  userId,
+                  chatId: member.chatId
+                }
+              );
+            }
+          }
+        }
+
+        logger.info('Cliente desconectado', { socketId: socket.id, userId });
+      } catch (error) {
+        logger.error('Error al manejar desconexión de socket', { error });
+      }
     });
   });
 };

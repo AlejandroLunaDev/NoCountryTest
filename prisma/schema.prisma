@@ -16,6 +16,7 @@ model User {
   name            String?
   email           String         @unique
   role            String         // Puede ser 'participant', 'admin', etc.
+  avatarUrl       String?        // URL de la imagen de perfil del usuario
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   
@@ -59,7 +60,7 @@ model UserSkill {
   isMainSkill   Boolean     @default(false) // Si es una habilidad principal del usuario
   
   // Relaciones
-  user          User        @relation("UserSkills", fields: [userId], references: [id])
+  user          User        @relation("UserSkills", fields: [userId], references: [id], onDelete: Cascade)
   skill         Skill       @relation("SkillRelation", fields: [skillId], references: [id])
   
   @@unique([userId, skillId])
@@ -129,9 +130,9 @@ model ChatUserState {
   isMuted           Boolean   @default(false)    // Si las notificaciones están silenciadas
   
   // Relaciones
-  user              User      @relation("UserChatStates", fields: [userId], references: [id])
-  chat              Chat      @relation("ChatUserStates", fields: [chatId], references: [id])
-  lastReadMessage   Message?  @relation("LastReadMessages", fields: [lastReadMessageId], references: [id])
+  user              User      @relation("UserChatStates", fields: [userId], references: [id], onDelete: Cascade)
+  chat              Chat      @relation("ChatUserStates", fields: [chatId], references: [id], onDelete: Cascade)
+  lastReadMessage   Message?  @relation("LastReadMessages", fields: [lastReadMessageId], references: [id], onDelete: SetNull)
   
   @@unique([userId, chatId])
 }
@@ -151,8 +152,8 @@ model ChatMember {
   joinedAt  DateTime  @default(now())
   
   // Relaciones
-  user      User      @relation("UserChatMembers", fields: [userId], references: [id])
-  chat      Chat      @relation("ChatMembers", fields: [chatId], references: [id])
+  user      User      @relation("UserChatMembers", fields: [userId], references: [id], onDelete: Cascade)
+  chat      Chat      @relation("ChatMembers", fields: [chatId], references: [id], onDelete: Cascade)
 
   @@unique([userId, chatId])
 }
@@ -168,9 +169,9 @@ model Message {
   updatedAt   DateTime  @updatedAt
   
   // Relaciones
-  sender      User      @relation("SentMessages", fields: [senderId], references: [id])
-  chat        Chat      @relation("ChatMessages", fields: [chatId], references: [id])
-  replyTo     Message?  @relation("MessageReplies", fields: [replyToId], references: [id])
+  sender      User      @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  chat        Chat      @relation("ChatMessages", fields: [chatId], references: [id], onDelete: Cascade)
+  replyTo     Message?  @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
   replies     Message[] @relation("MessageReplies")
   
   // Relación con notificaciones
@@ -193,10 +194,10 @@ model Notification {
   createdAt     DateTime          @default(now())
   
   // Relaciones
-  recipient     User              @relation("ReceivedNotifications", fields: [recipientId], references: [id])
-  sender        User?             @relation("SentNotifications", fields: [senderId], references: [id])
-  chat          Chat?             @relation("ChatNotifications", fields: [chatId], references: [id])
-  message       Message?          @relation("MessageNotifications", fields: [messageId], references: [id])
+  recipient     User              @relation("ReceivedNotifications", fields: [recipientId], references: [id], onDelete: Cascade)
+  sender        User?             @relation("SentNotifications", fields: [senderId], references: [id], onDelete: SetNull)
+  chat          Chat?             @relation("ChatNotifications", fields: [chatId], references: [id], onDelete: Cascade)
+  message       Message?          @relation("MessageNotifications", fields: [messageId], references: [id], onDelete: Cascade)
 }
 
 // Simulación Laboral
@@ -231,7 +232,7 @@ model WeeklySchedule {
   objectives    String?   // Objetivos generales de la semana
   
   // Relaciones
-  simulation    Simulation @relation("SimulationSchedules", fields: [simulationId], references: [id])
+  simulation    Simulation @relation("SimulationSchedules", fields: [simulationId], references: [id], onDelete: Cascade)
   tasks         Task[]     @relation("ScheduleTasks")
   meetings      Meeting[]  @relation("ScheduleMeetings")
   deliverables  Deliverable[] @relation("ScheduleDeliverables")
@@ -249,7 +250,7 @@ model Task {
   assignedRoles     String[]  // Array de roles a los que aplica la tarea
   
   // Relaciones
-  weeklySchedule    WeeklySchedule @relation("ScheduleTasks", fields: [weeklyScheduleId], references: [id])
+  weeklySchedule    WeeklySchedule @relation("ScheduleTasks", fields: [weeklyScheduleId], references: [id], onDelete: Cascade)
 }
 
 // Reuniones programadas
@@ -263,7 +264,7 @@ model Meeting {
   isRequired        Boolean   @default(true)
   
   // Relaciones
-  weeklySchedule    WeeklySchedule @relation("ScheduleMeetings", fields: [weeklyScheduleId], references: [id])
+  weeklySchedule    WeeklySchedule @relation("ScheduleMeetings", fields: [weeklyScheduleId], references: [id], onDelete: Cascade)
 }
 
 // Entregables
@@ -276,7 +277,7 @@ model Deliverable {
   assignedRoles     String[]  // Array de roles responsables
   
   // Relaciones
-  weeklySchedule    WeeklySchedule @relation("ScheduleDeliverables", fields: [weeklyScheduleId], references: [id])
+  weeklySchedule    WeeklySchedule @relation("ScheduleDeliverables", fields: [weeklyScheduleId], references: [id], onDelete: Cascade)
 }
 
 // Reporte final de simulación
@@ -288,7 +289,7 @@ model SimulationReport {
   conclusions     String?   // Resumen y conclusiones
   
   // Relaciones
-  simulation      Simulation @relation("SimulationReport", fields: [simulationId], references: [id])
+  simulation      Simulation @relation("SimulationReport", fields: [simulationId], references: [id], onDelete: Cascade)
 }
 
 enum SimulationType {
@@ -313,8 +314,8 @@ model UserSimulation {
   joinedAt      DateTime  @default(now())
   
   // Relaciones
-  user          User      @relation("UserSimulations", fields: [userId], references: [id])
-  simulation    Simulation @relation("SimulationUsers", fields: [simulationId], references: [id])
+  user          User      @relation("UserSimulations", fields: [userId], references: [id], onDelete: Cascade)
+  simulation    Simulation @relation("SimulationUsers", fields: [simulationId], references: [id], onDelete: Cascade)
 
   @@unique([userId, simulationId])
 }
@@ -334,7 +335,7 @@ model Project {
   updatedAt     DateTime  @updatedAt
   
   // Relaciones
-  simulation    Simulation @relation("SimulationProjects", fields: [simulationId], references: [id])
+  simulation    Simulation @relation("SimulationProjects", fields: [simulationId], references: [id], onDelete: Cascade)
   teams         ProjectTeam[] @relation("ProjectTeams")
 }
 
@@ -350,7 +351,7 @@ model ProjectTeam {
   name        String
   
   // Relaciones
-  project     Project   @relation("ProjectTeams", fields: [projectId], references: [id])
+  project     Project   @relation("ProjectTeams", fields: [projectId], references: [id], onDelete: Cascade)
   members     ProjectTeamMember[] @relation("TeamMembers")
 }
 
@@ -362,8 +363,8 @@ model ProjectTeamMember {
   role          String    // Rol específico en este proyecto
   
   // Relaciones
-  team          ProjectTeam @relation("TeamMembers", fields: [teamId], references: [id])
-  user          User     @relation("UserProjectTeams", fields: [userId], references: [id])
+  team          ProjectTeam @relation("TeamMembers", fields: [teamId], references: [id], onDelete: Cascade)
+  user          User     @relation("UserProjectTeams", fields: [userId], references: [id], onDelete: Cascade)
   
   @@unique([teamId, userId])
 }
@@ -378,8 +379,8 @@ model Activity {
   timestamp     DateTime  @default(now())
   
   // Relaciones
-  user          User      @relation("UserActivities", fields: [userId], references: [id])
-  simulation    Simulation @relation("SimulationActivities", fields: [simulationId], references: [id])
+  user          User      @relation("UserActivities", fields: [userId], references: [id], onDelete: Cascade)
+  simulation    Simulation @relation("SimulationActivities", fields: [simulationId], references: [id], onDelete: Cascade)
 }
 
 enum ActivityType {
