@@ -79,7 +79,14 @@ Se implementó Socket.io para la comunicación en tiempo real:
 
 1. Clona el repositorio
 2. Instala las dependencias: `npm install`
-3. Configura las variables de entorno en un archivo `.env`
+3. Configura las variables de entorno en un archivo `.env`:
+   ```
+   PORT=3000
+   NODE_ENV=development
+   DATABASE_URL="postgresql://postgres:password@localhost:5432/nocountry"
+   SUPABASE_URL=your_supabase_url
+   SUPABASE_KEY=your_supabase_key
+   ```
 4. Genera el cliente Prisma: `npx prisma generate`
 5. Ejecuta las migraciones: `npx prisma migrate dev`
 6. Inicia el servidor:
